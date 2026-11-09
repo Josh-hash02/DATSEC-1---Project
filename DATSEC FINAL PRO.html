@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SHA-256 Lab</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#e8edf1;--card:#f7f9fa;--ink:#13233a;--mute:#5a6b7e;--line:#c3cdd6;--acc:#0b7a75;--hit:#d6452b;--on:#13233a;--off:#cfd8df}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1824;--card:#15243a;--ink:#e6edf3;--mute:#92a3b5;--line:#2a3d55;--acc:#3dc4bb;--hit:#ff7a5c;--on:#e6edf3;--off:#2a3d55}}
+:root[data-theme="dark"]{--bg:#0e1824;--card:#15243a;--ink:#e6edf3;--mute:#92a3b5;--line:#2a3d55;--acc:#3dc4bb;--hit:#ff7a5c;--on:#e6edf3;--off:#2a3d55}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*:before,*:after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Instrument Sans",system-ui,sans-serif}
+main{max-width:860px;margin:0 auto;padding:28px 18px 60px}
+h1{font-size:2rem;margin:0 0 4px;letter-spacing:-.02em}
+h2{font-size:1.15rem;margin:0 0 6px}
+p.lead{color:var(--mute);margin:0 0 22px;max-width:60ch}
+section{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:18px;margin-bottom:16px}
+textarea,input{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:10px}
+textarea{min-height:76px;resize:vertical}
+textarea:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+button{font:inherit;font-weight:600;background:var(--acc);color:#fff;border:0;border-radius:4px;padding:8px 14px;cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.82rem;word-break:break-all}
+.digest{font-size:1.02rem;font-weight:600;color:var(--acc)}
+.err{color:var(--hit);font-weight:600}.ok{color:var(--acc);font-weight:600}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:560px}
+td,th{border-bottom:1px solid var(--line);padding:4px 8px;text-align:left}
+.grid{display:grid;grid-template-columns:repeat(32,1fr);gap:2px;max-width:420px;margin:10px 0}
+.grid i{aspect-ratio:1;background:var(--off);border-radius:1px}
+.grid i.on{background:var(--on)}.grid i.diff{background:var(--hit)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:640px){.cols{grid-template-columns:1fr}}
+details summary{cursor:pointer;font-weight:600}
+li{margin-bottom:6px}
+@media (prefers-reduced-motion:no-preference){.grid i{transition:background .25s}}
+</style>
+</head>
+<body>
+<main>
+<h1>SHA-256 Lab</h1>
+<p class="lead">Type any text and see its 256-bit fingerprint. Change one character and watch about half the bits flip. A hash cannot be decrypted; it can only be recomputed and compared.</p>
+
+<section>
+<h2>1. Hash a message</h2>
+<textarea id="msg" aria-label="Message to hash" maxlength="2000">abc</textarea>
+<div class="row"><button id="go">Compute hash</button><button class="ghost" id="ex">Use test vector “abc”</button><button class="ghost" id="clr">Clear</button></div>
+<p id="status"></p>
+<div class="mono digest" id="digest"></div>
+<p class="mono" id="check"></p>
+</section>
+
+<section>
+<h2>2. Verify against an expected hash</h2>
+<input id="exp" aria-label="Expected SHA-256 hex" placeholder="Paste a 64-character hex hash" spellcheck="false">
+<p id="vres"></p>
+</section>
+
+<section>
+<h2>3. Avalanche effect</h2>
+<div class="cols">
+<div><label for="a">Input A</label><textarea id="a">Hello, SHA-256</textarea></div>
+<div><label for="b">Input B (one character changed)</label><textarea id="b">Hello, SHA-257</textarea></div>
+</div>
+<div class="row"><button id="cmp">Compare digests</button></div>
+<div class="cols"><div><div class="mono" id="ha"></div><div class="grid" id="ga"></div></div><div><div class="mono" id="hb"></div><div class="grid" id="gb"></div></div></div>
+<p id="diff"></p>
+<p class="mono" style="color:var(--mute)">Dark squares are 1-bits in A. In B, red squares mark bits that differ from A.</p>
+</section>
+
+<section>
+<h2>4. Inside the algorithm</h2>
+<div id="trace" class="scroll"></div>
+</section>
+
+<section>
+<h2>5. Known limits</h2>
+<ul>
+<li><b>Fast hashing makes password guessing cheap.</b> Plain SHA-256 can be brute-forced on GPUs. Use Argon2id, bcrypt or PBKDF2 with a salt for passwords.</li>
+<li><b>Length extension.</b> SHA-256(secret ‖ message) lets an attacker append data without knowing the secret. Use HMAC-SHA256 instead.</li>
+<li><b>Hashing alone is not authentication.</b> Anyone can hash a modified file, so the digest must come from a trusted channel or be signed.</li>
+</ul>
+</section>
+</main>
+<script>
+(function(){
+var enc=new TextEncoder();
+function frac(x){return Math.floor((x-Math.floor(x))*4294967296)>>>0}
+var P=[],n=2;while(P.length<64){var ok=true;for(var i=0;i<P.length;i++)if(n%P[i]===0){ok=false;break}if(ok)P.push(n);n++}
+var K=P.map(function(p){return frac(Math.pow(p,1/3))}),H0=P.slice(0,8).map(function(p){return frac(Math.sqrt(p))});
+function rotr(x,k){return(x>>>k)|(x<<(32-k))}
+function hx(w){return('00000000'+(w>>>0).toString(16)).slice(-8)}
+function sha(bytes){
+ var l=bytes.length,pl=((l+9+63)>>6)<<6,buf=new Uint8Array(pl);buf.set(bytes);buf[l]=0x80;
+ var dv=new DataView(buf.buffer);dv.setUint32(pl-8,Math.floor(l*8/4294967296));dv.setUint32(pl-4,(l*8)>>>0);
+ var H=H0.slice(),W0=null,rounds=[];
+ for(var off=0;off<pl;off+=64){
+  var W=new Array(64);
+  for(var t=0;t<16;t++)W[t]=dv.getUint32(off+4*t);
+  for(t=16;t<64;t++){var s0=rotr(W[t-15],7)^rotr(W[t-15],18)^(W[t-15]>>>3),s1=rotr(W[t-2],17)^rotr(W[t-2],19)^(W[t-2]>>>10);W[t]=(W[t-16]+s0+W[t-7]+s1)|0}
+  if(!W0)W0=W.slice(0,16);
+  var v=H.slice();
+  for(t=0;t<64;t++){
+   var a=v[0],b=v[1],c=v[2],d=v[3],e=v[4],f=v[5],g=v[6],h=v[7];
+   var t1=(h+(rotr(e,6)^rotr(e,11)^rotr(e,25))+((e&f)^(~e&g))+K[t]+W[t])|0;
+   var t2=((rotr(a,2)^rotr(a,13)^rotr(a,22))+((a&b)^(a&c)^(b&c)))|0;
+   v=[(t1+t2)|0,a,b,c,(d+t1)|0,e,f,g];
+   if(off===0&&t<4)rounds.push(v.slice());
+  }
+  for(t=0;t<8;t++)H[t]=(H[t]+v[t])|0;
+ }
+ var padded=[];for(var i2=0;i2<pl;i2++)padded.push(('0'+buf[i2].toString(16)).slice(-2));
+ return{hex:H.map(hx).join(''),padded:padded,blocks:pl/64,W:W0,rounds:rounds,len:l};
+}
+function $(id){return document.getElementById(id)}
+function esc(s){return s.replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+async function ref(s){var d=await crypto.subtle.digest('SHA-256',enc.encode(s));return Array.from(new Uint8Array(d)).map(function(b){return('0'+b.toString(16)).slice(-2)}).join('')}
+function bits(hex){var o=[];for(var i=0;i<hex.length;i++){var n=parseInt(hex[i],16);for(var k=3;k>=0;k--)o.push((n>>k)&1)}return o}
+function grid(el,hex,other){var b=bits(hex),o=other?bits(other):null;el.innerHTML=b.map(function(x,i){return'<i class="'+(o?(x!==o[i]?'diff':(x?'on':'')):(x?'on':''))+'"></i>'}).join('')}
+async function run(){
+ var s=$('msg').value;
+ if(!s.length){$('status').innerHTML='<span class="err">Enter a message first. An empty input is valid for SHA-256, but this lab asks for text so the steps are visible.</span>';$('digest').textContent='';$('check').textContent='';$('trace').innerHTML='';return}
+ $('status').innerHTML='<span style="color:var(--mute)">'+enc.encode(s).length+' bytes in, 32 bytes (256 bits) out</span>';
+ var r=sha(enc.encode(s)),own=r.hex,lib=await ref(s);
+ $('digest').textContent=own;
+ $('check').innerHTML=own===lib?'<span class="ok">Matches the browser’s built-in Web Crypto SHA-256.</span>':'<span class="err">Mismatch with Web Crypto. Built-in: '+lib+'</span>';
+ var pad=[];for(var i=0;i<r.padded.length;i+=4)pad.push(r.padded.slice(i,i+4).join(''));
+ var h='<p><b>Step 1 – Padding.</b> Message bytes + <span class="mono">80</span> + zeros + 64-bit length, giving '+r.blocks+' block(s) of 512 bits. Shown in hex:</p><p class="mono">'+pad.join(' ')+'</p>';
+ h+='<p><b>Step 2 – Message schedule.</b> The first block gives words W0–W15; W16–W63 are mixed from earlier words.</p><p class="mono">'+r.W.map(hx).map(function(w,i){return'W'+i+'='+w}).join('  ')+'</p>';
+ h+='<p><b>Step 3 – Compression.</b> Eight working variables (a–h) start from fixed constants and are scrambled over 64 rounds. First four rounds of block 1:</p><table class="mono"><tr><th>Round</th><th>a</th><th>b</th><th>c</th><th>d</th><th>e</th><th>f</th><th>g</th><th>h</th></tr>';
+ r.rounds.forEach(function(v,i){h+='<tr><td>'+i+'</td>'+v.map(function(w){return'<td>'+hx(w)+'</td>'}).join('')+'</tr>'});
+ h+='</table><p><b>Step 4 – Output.</b> The variables are added to the running hash state, and after the last block the eight 32-bit words join into the 256-bit digest above.</p>';
+ $('trace').innerHTML=h;
+ vcheck();
+}
+function vcheck(){
+ var e=$('exp').value.trim().toLowerCase(),d=$('digest').textContent,o=$('vres');
+ if(!e){o.innerHTML='';return}
+ if(!/^[0-9a-f]{64}$/.test(e)){o.innerHTML='<span class="err">Invalid format: SHA-256 hashes are exactly 64 hexadecimal characters (0–9, a–f).</span>';return}
+ if(!d){o.innerHTML='<span class="err">Compute a hash in step 1 first.</span>';return}
+ o.innerHTML=e===d?'<span class="ok">Match: the message is unchanged.</span>':'<span class="err">No match: the message or the expected hash is different.</span>'}
+async function compare(){
+ var a=$('a').value,b=$('b').value;
+ if(!a||!b){$('diff').innerHTML='<span class="err">Fill in both inputs.</span>';return}
+ var x=sha(enc.encode(a)).hex,y=sha(enc.encode(b)).hex;
+ $('ha').textContent=x;$('hb').textContent=y;grid($('ga'),x);grid($('gb'),y,x);
+ var bx=bits(x),by=bits(y),c=0;for(var i=0;i<256;i++)if(bx[i]!==by[i])c++;
+ $('diff').innerHTML=a===b?'Inputs are identical, so the digests are identical (0 bits differ).':'<b>'+c+' of 256 bits differ ('+(c/2.56).toFixed(1)+'%).</b> A good hash flips about 50% of bits for any small change.'}
+$('go').onclick=run;$('cmp').onclick=compare;$('exp').oninput=vcheck;
+$('ex').onclick=function(){$('msg').value='abc';run()};
+$('clr').onclick=function(){$('msg').value='';run()};
+run();compare();
+})();
+</script>
+</body>
+</html>
